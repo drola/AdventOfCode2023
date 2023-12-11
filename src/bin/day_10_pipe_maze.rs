@@ -4,6 +4,7 @@
 use std::env;
 use std::fs;
 use itertools::Itertools;
+use nom::AsChar;
 
 #[derive(Debug, Clone)]
 struct Pipe {
@@ -27,6 +28,7 @@ fn main() {
             }
         }
     }
+    let start_coords = start_coords.unwrap();
 
     let mut connections = vec![vec![Pipe { connections: vec![] }; w]; h];
 
@@ -58,8 +60,8 @@ fn main() {
         }
     }
 
-    let mut current_position = start_coords.unwrap();
-    let mut path = vec![start_coords.unwrap()];
+    let mut current_position = start_coords;
+    let mut path = vec![start_coords];
     loop {
         let mut next_step = None;
 
@@ -73,68 +75,95 @@ fn main() {
 
         current_position = next_step.unwrap();
         path.push(next_step.unwrap());
-        if next_step == start_coords {
+        if next_step.unwrap() == start_coords {
             break;
         }
     }
 
-    println!("Path: {:?}", path);
-    println!("Path length: {:?}", path.len());
-    println!("Longest distance: {}", path.len() / 2);
+    // Fill in "S" at start coords with actual symbol:
+    let start_out = path[1]; // First after start
+    let delta_out = (start_out.0 as i64 - start_coords.0 as i64, start_out.1 as i64 - start_coords.1 as i64);
+    let start_in = path[path.len() - 2]; // Last before start
+    let delta_in = (start_coords.0 as i64 - start_in.0 as i64, start_coords.1 as i64 - start_in.1 as i64);
+
+
+    //println!("Path: {:?}", path);
+    //println!("Path length: {:?}", path.len());
+    println!("Longest distance [part 1]: {}", path.len() / 2);
+
+    let start_symbol = match (delta_in, delta_out) {
+        ((1, 0), (1, 0)) => b'-', /*-S-*/
+        ((-1, 0), (-1, 0)) => b'-', /*-S-*/
+        ((0, 1), (0, 1)) => b'|',
+        ((0, -1), (0, -1)) => b'|',
+
+        ((1, 0), (0, 1)) => b'7',
+        ((0, -1), (-1, 0)) => b'7',
+        ((0, 1), (1, 0)) => b'L',
+        ((-1, 0), (0, -1)) => b'L',
+        ((1, 0), (0, -1)) => b'J',
+        ((0, 1), (-1, 0)) => b'J',
+        ((0, -1), (1, 0)) => b'F',
+        ((-1, 0), (0, 1)) => b'F',
+
+        (a, b) => panic!("Unrecognized case: ({:?}, {:?})!", a, b)
+    };
+    println!("Start symbol: {}", start_symbol.as_char());
 
     // Counting inside area of the loop
-    let mut colors = vec![vec![0i64; w]; h];
+    let mut colors = vec![vec![b'.'; w]; h];
 
     // Mark path itself
     for (x, y) in path {
-        colors[y][x] = -1;
+        colors[y][x] = match map[y][x] {
+            b'S' => start_symbol,
+            s => s
+        };
     }
 
-    // Left-right pass
+    // ray-trace, row by row
+    // The idea behind the algorithm is from https://elixirforum.com/t/advent-of-code-2023-day-10/60279/4
     for y in 0..h {
-        let mut v = 0;
+        let mut inside = false;
+        let mut corners = vec![];
         for x in 0..w {
-            if colors[y][x] == -1 {
-                if (map[y][x] != b'-') {
-                    v = v + 1;
-                }
+            if colors[y][x] == b'.' {
+                colors[y][x] = match inside {
+                    true => b'I',
+                    false => b'.'
+                };
+            } else if colors[y][x] == b'-' {
+                // This case is horrendously uninteresting in horizontal ray trace.
+            } else if colors[y][x] == b'|' {
+                inside = !inside;
             } else {
-                //colors[y][x] = v;
+                corners.push(colors[y][x]);
+                if corners.len() >= 2 {
+                    let flip_inside_outside = match (corners[corners.len() - 2], corners[corners.len() - 1]) {
+                        (b'L', b'7') => true,
+                        (b'L', b'J') => false,
+                        (b'F', b'7') => false,
+                        (b'F', b'J') => true,
+                        _ => false
+                    };
+                    if flip_inside_outside {
+                        inside = !inside;
+                    }
+                }
             }
         }
     }
 
-    // Top-down pass
-    // for x in 0..w {
-    //     let mut v = 0;
-    //     for y in 0..h {
-    //         if colors_v[y][x] == -1 {
-    //             if map[y][x] != b'|' {
-    //                 v = v + 1;
-    //             }
-    //         } else {
-    //             colors_v[y][x] = v;
-    //         }
-    //     }
-    // }
 
-    // Visualize MAP
-    for y in 0..h {
-        for x in 0..w {
-            print!("{:4}", colors[y][x]);
-        }
-        println!("");
+    // print out map
+    for y in &colors {
+        println!("{}", String::from_utf8(y.clone()).unwrap());
     }
 
-    // Inside area = count of ODD POSITIVE numbers
-    let mut enclosed_area: u64 = 0;
-    for y in 0..h {
-        for x in 0..w {
-            let color = colors[y][x];
-            if color > 0 && color % 2 == 1 {
-                enclosed_area += 1;
-            }
-        }
-    }
-    println!("Enclosed area [part 2]: {}", enclosed_area);
+    // Count INSIDE cells
+    let inside_cells_count: u64 = colors.iter().map(|l| l.iter().map(|v| match v {
+        b'I' => 1,
+        _ => 0
+    }).sum::<u64>()).sum();
+    println!("Inside cells count [part 2]: {}", inside_cells_count);
 }

@@ -105,6 +105,67 @@ fn main() {
 
     println!("Step count [part 1]: {}", step_count_part_1);
 
+    let starts_for_part_2 = all_node_names.iter().filter_map(|f| match ends_with_a(f) {
+        true => Some(*f),
+        _ => None
+    }).collect_vec();
+
+    let mut cycle_lengths = vec![];
+
+    for start_node in starts_for_part_2 {
+        let mut step_index = 0usize;
+        let mut position = start_node;
+        let mut states = vec![];
+        let mut direction_index = 0usize;
+
+
+        // Observation on my input data:
+        // AAA has cycle of length 17873 (=293*61)
+        // QRA has cycle of length 19631 (=293*67)
+        // KQA has cycle of length 17287 (=293+59)
+        // DFA has cycle of length 12599 (=293*43)
+        // DBA has cycle of length 21389 (=293*73)
+        // HJA has cycle of length 20803 (=293*71)
+
+        // Analyze cycles
+        loop {
+            position = match directions[direction_index] {
+                Direction::Left => nodes[name_to_index(&position)].unwrap().left,
+                Direction::Right => nodes[name_to_index(&position)].unwrap().right,
+            };
+            step_index += 1;
+            direction_index = step_index % directions.len();
+
+            if ends_with_z(&position) {
+                if states.len() > 0 && (direction_index, position) == states[0] { // made a full cycle
+                    break;
+                } else {
+                    states.push((direction_index, position));
+                }
+            }
+        }
+
+        let cycle_length = step_index / (states.len() + 1);
+
+        // It's slightly surprising to me, that cycle lengths are so perfect as we see in the following output.
+        // The input in advent of caledar 2023, is apparently well crafted.
+        // In general case, the path taken could be much messier.
+        println!("Cycle length for {} is {} = {} * {}", String::from_utf8_lossy(&start_node), cycle_length,
+                 directions.len(), cycle_length / directions.len() + cycle_length % directions.len());
+        cycle_lengths.push(cycle_length);
+    }
+    // Also, the GCD of all cycle lengths is 293, which is the length of the directions input.
+    // This simplifies calculation below:
+    println!("We need to make:");
+    println!("{}", directions.len());
+    let mut prod = directions.len();
+    for cl in cycle_lengths {
+        println!("* {}", cl / directions.len());
+        prod *= cl / directions.len();
+    }
+    println!("= {} steps.", prod);
+
+
     // TODO: The brute-force implementation below is way too slow.
     //
     // let mut step_count_part_2 = 0u64;
@@ -134,7 +195,7 @@ fn main() {
     // For each ghost we can calculate complete cycle -> when it gets back to initial node with direction_index==0. Cycle length = 240k max.
     // Then we can compute position of arbitrary ghost in arbitrary step in O(1).
 
-    println!("Step count [part 2]: {}", step_count_part_2);
+    //println!("Step count [part 2]: {}", step_count_part_2);
 }
 
 #[cfg(test)]
