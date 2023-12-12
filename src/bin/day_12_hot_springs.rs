@@ -36,7 +36,7 @@ impl Record {
     }
 
     // Up to the first ?, removes known springs and groups
-    fn trim(&self) -> Option<Record> {
+    fn trim(mut self) -> Option<Record> {
         let mut new_start_springs = 0usize;
         let mut new_start_groups = 0usize;
 
@@ -73,10 +73,9 @@ impl Record {
             }
         }
 
-        Some(Record {
-            springs: self.springs[new_start_springs..].to_vec(),
-            groups: self.groups[new_start_groups..].to_vec(),
-        })
+        self.springs.drain(0..new_start_springs);
+        self.groups.drain(0..new_start_groups);
+        Some(self)
     }
 
     fn is_resolved(&self) -> bool {
@@ -112,12 +111,12 @@ fn parse_numbers(i: &str) -> IResult<&str, Vec<u64>> {
 }
 
 fn parse_record(i: &str) -> Record {
-    let (r, (springs, _, groups)) = tuple((many1(parse_spring), space1, parse_numbers))(i).unwrap();
+    let (_, (springs, _, groups)) = tuple((many1(parse_spring), space1, parse_numbers))(i).unwrap();
     Record { springs, groups }
 }
 
 fn is_valid(springs: &[Spring], groups: &Vec<u64>) -> bool {
-    let mut groups_in_s = vec![];
+    let mut groups_in_s = Vec::with_capacity(groups.len());
     let mut current_group_length = 0;
     for s in springs {
         if *s == Spring::Damaged {
@@ -142,30 +141,55 @@ fn is_valid_till_first_unknown(springs: &[Spring], groups: &Vec<u64>) -> bool {
             damaged_count += 1;
         }
     }
-    let mut total_count_across_groups = groups.iter().sum::<u64>();
-    if (damaged_count > total_count_across_groups) {
+    let total_count_across_groups = groups.iter().sum::<u64>();
+    if damaged_count > total_count_across_groups {
         return false;
     }
 
-    let mut groups_in_s = vec![];
-    let mut current_group_length = 0;
+    // Forward
+    let mut current_group_length = 0u64;
+    let mut current_group_index = 0usize;
     for s in springs {
         if *s == Spring::Damaged {
             current_group_length += 1;
         } else if *s == Spring::Operational && current_group_length > 0 {
-            groups_in_s.push(current_group_length);
-            current_group_length = 0;
+            if current_group_index < groups.len() && groups[current_group_index] == current_group_length {
+                current_group_length = 0;
+                current_group_index += 1;
+            } else {
+                return false;
+            }
         } else if *s == Spring::Unknown {
             current_group_length = 0;
             break;
         }
     }
     if current_group_length > 0 {
-        groups_in_s.push(current_group_length);
+        if !(current_group_index < groups.len() && groups[current_group_index] == current_group_length) {
+            return false;
+        }
     }
 
-    for i in 0..groups_in_s.len() {
-        if groups.len() <= i || groups_in_s[i] != groups[i] {
+    // Backward
+    let mut current_group_length = 0;
+    let mut current_group_index = 0;
+    for s in springs.iter().rev() {
+        if *s == Spring::Damaged {
+            current_group_length += 1;
+        } else if *s == Spring::Operational && current_group_length > 0 {
+            if groups.len() > current_group_index && groups[groups.len() - 1 - current_group_index] == current_group_length {
+                current_group_length = 0;
+                current_group_index += 1;
+            } else {
+                return false;
+            }
+        } else if *s == Spring::Unknown {
+            current_group_length = 0;
+            break;
+        }
+    }
+    if current_group_length > 0 {
+        if !(groups.len() > current_group_index && groups[groups.len() - 1 - current_group_index] == current_group_length) {
             return false;
         }
     }
@@ -205,11 +229,15 @@ fn count_combinations_brute_force(r: &Record) -> u64 {
 }
 
 fn count_combinations_recursive(r: &Record) -> u64 {
+    if r.is_resolved() {
+        return match is_valid(&r.springs, &r.groups) {
+            true => 1,
+            false => 0
+        };
+    }
+
     if !is_valid_till_first_unknown(&r.springs, &r.groups) {
         return 0;
-    }
-    if r.is_resolved() {
-        return 1;
     }
 
     let option1 = r.with_first_resolved(Spring::Operational).trim();
