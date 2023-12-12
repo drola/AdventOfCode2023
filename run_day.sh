@@ -14,6 +14,6 @@ if [ -z "$filename" ]; then
     exit 1
 fi
 
-command="cargo run --bin ${filename} -- inputs/${filename}.txt"
+command="cargo run --release --bin ${filename} -- inputs/${filename}.txt"
 echo $command
 $command
