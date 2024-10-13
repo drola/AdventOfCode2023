@@ -110,18 +110,14 @@ fun dig(instructions: List<Instruction>) {
         } else if (mappedX < x) {
             field[y].fill('<', mappedX, x);
         }
-        if (x != mappedX) {
-            //field[y][x] = '|';
-            //field[y][mappedX] = '|';
-        } else if (y != mappedY) {
-            if (mappedY > y) {
-                for (y in y..mappedY) {
-                    field[y][x] = 'V';
-                }
-            } else if (y > mappedY) {
-                for (y in mappedY..y) {
-                    field[y][x] = '^';
-                }
+
+        if (mappedY > y) {
+            for (y in y..mappedY) {
+                field[y][x] = 'V';
+            }
+        } else if (y > mappedY) {
+            for (y in mappedY..y) {
+                field[y][x] = '^';
             }
         }
         x = mappedX;
@@ -135,7 +131,6 @@ fun dig(instructions: List<Instruction>) {
     for (line in field) {
         var x = 0;
         var isIn = false;
-        var lastWall = 0;
         while (x < line.size) {
             if (line[x] == '^') {
                 isIn = true;
@@ -147,8 +142,6 @@ fun dig(instructions: List<Instruction>) {
             }
             x++;
         }
-
-
     }
 
 
@@ -164,7 +157,6 @@ fun dig(instructions: List<Instruction>) {
             }
         }.sum()
     }.sum()
-//    var sum = field.sumOf { line -> line.count { char -> char != '.' } }
     println("Sum: $sum");
 }
 
